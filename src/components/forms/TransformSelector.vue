@@ -1,6 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { TRANSFORM_ASSETS } from '@/constants/transform-assets';
+import { useDataStore } from '@/stores/useDataStore.js';
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -9,10 +11,13 @@ const props = defineProps({
   allowEmpty: { type: Boolean, default: true },
   forceCustom: { type: Boolean, default: false },
   customPlaceholder: { type: String, default: '输入外部规则模板 URL' },
-  excludeBuiltinAssets: { type: Boolean, default: false }
+  excludeBuiltinAssets: { type: Boolean, default: false },
+  customTemplatesOnly: { type: Boolean, default: false }
 });
 
 const emit = defineEmits(['update:modelValue', 'select-asset']);
+const dataStore = useDataStore();
+const { ruleTemplates } = storeToRefs(dataStore);
 
 const TEMPLATE_VARIABLE_GROUPS = [
   {
@@ -34,12 +39,36 @@ const TEMPLATE_VARIABLE_GROUPS = [
   }
 ];
 
-const assets = computed(() =>
-  TRANSFORM_ASSETS.configs.filter((item) => {
+const customTemplateAssets = computed(() => {
+  if (props.excludeBuiltinAssets) return [];
+
+  return (ruleTemplates.value || [])
+    .filter(item => item && item.enabled !== false && item.id)
+    .map(item => ({
+      id: `custom:${item.id}`,
+      name: item.name || '未命名自定义规则模板',
+      url: `custom:${item.id}`,
+      group: '自定义规则模板',
+      sourceType: 'custom-template',
+      description: item.description || '本地保存的自定义规则模板'
+    }));
+});
+
+const assets = computed(() => {
+  if (props.customTemplatesOnly) return customTemplateAssets.value;
+
+  const builtinAndRemote = TRANSFORM_ASSETS.configs.filter((item) => {
     if (!props.excludeBuiltinAssets) return true;
     return !String(item.url || '').startsWith('builtin:');
-  })
-);
+  });
+  return [...customTemplateAssets.value, ...builtinAndRemote];
+});
+
+const missingCustomTemplateValue = computed(() => {
+  const value = String(props.modelValue || '').trim();
+  if (!props.customTemplatesOnly || !value.startsWith('custom:')) return '';
+  return customTemplateAssets.value.some(item => item.url === value) ? '' : value;
+});
 
 const groupedConfigs = computed(() => {
   if (props.type !== 'config') return {};
@@ -63,6 +92,14 @@ watch(
       isCustom.value = true;
       selectedUrl.value = 'custom';
       emit('select-asset', null);
+      return;
+    }
+
+    if (props.customTemplatesOnly) {
+      const foundCustom = assets.value.find((item) => item.url === newVal);
+      selectedUrl.value = foundCustom ? newVal : '';
+      isCustom.value = false;
+      emit('select-asset', foundCustom || null);
       return;
     }
 
@@ -113,7 +150,7 @@ const handleSelectChange = (e) => {
   if (props.forceCustom) return;
 
   const val = e.target.value;
-  if (val === 'custom') {
+  if (val === 'custom' && !props.customTemplatesOnly) {
     isCustom.value = true;
     emit('select-asset', null);
     emit('update:modelValue', '');
@@ -140,8 +177,11 @@ const switchToSelect = () => {
 };
 
 const helperText = computed(() => {
+  if (props.customTemplatesOnly) {
+    return '仅可选择已保存的 custom: 自定义规则模板。';
+  }
   if (props.excludeBuiltinAssets) {
-    return '第三方订阅转换仅支持远程模板 URL，无法兼容 MiSub 内置规则与内置预设。';
+    return '第三方订阅转换仅支持远程模板 URL，无法兼容 MiSub 内置规则、内置预设和本地 custom: 模板。';
   }
   return '适用于统一模板渲染。';
 });
@@ -153,7 +193,7 @@ const helperText = computed(() => {
       v-if="type === 'config' && excludeBuiltinAssets"
       class="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/90 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-200"
     >
-      使用第三方订阅转换时，无法兼容 MiSub 内置规则。
+      使用第三方订阅转换时，无法兼容 MiSub 内置规则、内置预设和本地 custom: 模板。
       请使用远程预设模板或自定义 URL。
     </div>
 
@@ -181,7 +221,11 @@ const helperText = computed(() => {
           </option>
         </optgroup>
 
-        <option value="custom" class="border-t font-bold text-indigo-600 dark:text-indigo-400">
+        <option
+          v-if="!customTemplatesOnly"
+          value="custom"
+          class="border-t font-bold text-indigo-600 dark:text-indigo-400"
+        >
           自定义输入...
         </option>
       </select>
@@ -216,6 +260,13 @@ const helperText = computed(() => {
       <p v-if="modelValue" class="mt-1 truncate text-xs text-indigo-500" title="当前自定义值">
         当前值: {{ modelValue }}
       </p>
+    </div>
+
+    <div
+      v-if="missingCustomTemplateValue"
+      class="mt-2 rounded-lg border border-amber-300/60 bg-amber-50/90 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-200"
+    >
+      当前引用的自定义规则模板不存在或已停用：<code class="font-mono">{{ missingCustomTemplateValue }}</code>。请选择一个已保存且启用的 custom: 模板。
     </div>
 
     <div
