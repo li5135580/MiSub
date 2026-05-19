@@ -25,16 +25,29 @@ const TEMPLATE_VARIABLE_GROUPS = [
     items: [
       { key: '<%proxies%>', example: '代理节点片段' },
       { key: '<%rules%>', example: '规则片段' },
-      { key: '<%file_name%>', example: '配置文件名' },
-      { key: '<%target_format%>', example: 'clash / surge / quanx 等' }
+      { key: '<%file_name%>', example: '配置文件名（同 <%fileName%>）' },
+      { key: '<%target_format%>', example: '目标格式（同 <%targetFormat%>）' },
+      { key: '<%node_count%>', example: '节点数量（同 <%nodeCount%>）' }
     ]
   },
   {
-    title: '分组变量',
+    title: '策略组变量',
     items: [
-      { key: '<%region_strategy_chain%>', example: '地区策略组链' },
-      { key: '<%protocol_strategy_chain%>', example: '协议策略组链' },
-      { key: '<%all_strategy_groups%>', example: '所有策略组名称集合' }
+      { key: '<%primary_strategy_chain%>', example: '主策略组完整候选链（同 <%primaryStrategyChain%>）' },
+      { key: '<%region_strategy_chain%>', example: '地区策略组候选链（同 <%regionStrategyChain%>）' },
+      { key: '<%protocol_strategy_chain%>', example: '协议策略组候选链（同 <%protocolStrategyChain%>）' },
+      { key: '<%all_strategy_groups%>', example: '所有策略组名称集合（同 <%allStrategyGroups%>）' }
+    ]
+  },
+  {
+    title: '分组明细变量',
+    items: [
+      { key: '<%region_group_names%>', example: '地区策略组名称列表（同 <%regionGroupNames%>）' },
+      { key: '<%region_group_counts%>', example: '地区策略组节点数量（同 <%regionGroupCounts%>）' },
+      { key: '<%region_group_list%>', example: '地区策略组逐行清单（同 <%regionGroupList%>）' },
+      { key: '<%protocol_group_names%>', example: '协议策略组名称列表（同 <%protocolGroupNames%>）' },
+      { key: '<%protocol_group_counts%>', example: '协议策略组节点数量（同 <%protocolGroupCounts%>）' },
+      { key: '<%protocol_group_list%>', example: '协议策略组逐行清单（同 <%protocolGroupList%>）' }
     ]
   }
 ];
@@ -84,6 +97,7 @@ const groupedConfigs = computed(() => {
 
 const isCustom = ref(false);
 const selectedUrl = ref('');
+const showTemplateVariables = ref(false);
 
 watch(
   () => props.modelValue,
@@ -271,13 +285,30 @@ const helperText = computed(() => {
 
     <div
       v-if="type === 'config'"
-      class="mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3 text-xs dark:border-gray-700 dark:bg-gray-800/40"
+      class="mt-3 rounded-lg border border-gray-200 bg-gray-50/80 text-xs dark:border-gray-700 dark:bg-gray-800/40"
     >
-      <div class="flex items-center justify-between gap-3">
-        <p class="font-medium text-gray-700 dark:text-gray-200">模板变量说明</p>
-        <span class="text-[11px] text-gray-400">{{ helperText }}</span>
-      </div>
-      <div class="mt-3 grid gap-3 md:grid-cols-2">
+      <button
+        type="button"
+        class="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-100/70 dark:hover:bg-gray-700/30"
+        :aria-expanded="showTemplateVariables"
+        @click="showTemplateVariables = !showTemplateVariables"
+      >
+        <span>
+          <span class="font-medium text-gray-700 dark:text-gray-200">模板变量说明</span>
+          <span class="ml-2 text-[11px] text-gray-400">{{ helperText }}</span>
+        </span>
+        <svg
+          class="h-4 w-4 flex-shrink-0 text-gray-400 transition-transform"
+          :class="showTemplateVariables ? 'rotate-180' : ''"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      <div v-if="showTemplateVariables" class="grid gap-3 border-t border-gray-200 p-3 md:grid-cols-2 dark:border-gray-700">
         <div
           v-for="group in TEMPLATE_VARIABLE_GROUPS"
           :key="group.title"
